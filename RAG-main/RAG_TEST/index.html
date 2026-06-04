@@ -705,6 +705,19 @@
         .typing-dot:nth-child(1) { animation-delay: -0.32s; }
         .typing-dot:nth-child(2) { animation-delay: -0.16s; }
 
+        /* Typewriter cursor effect */
+        .typing-cursor {
+            display: inline-block;
+            color: var(--color-primary);
+            font-weight: bold;
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
         /* Animations */
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -1022,53 +1035,12 @@
             if (role === 'user') {
                 bubble.textContent = content;
             } else {
-                bubble.innerHTML = formatMarkdown(content);
+                // For AI messages, start with empty content for typewriter effect
+                bubble.innerHTML = '<span class="typewriter-content"></span>';
                 
-                // If references are present, build accordion dropdown
-                if (references && references.length > 0) {
-                    const refsContainer = document.createElement('div');
-                    refsContainer.className = 'references-container';
-                    
-                    const refsHeader = document.createElement('div');
-                    refsHeader.className = 'references-header';
-                    refsHeader.innerHTML = `
-                        <svg viewBox="0 0 24 24">
-                            <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
-                        </svg>
-                        <span>檢視引用文獻 (${references.length})</span>
-                    `;
-                    
-                    const refsList = document.createElement('div');
-                    refsList.className = 'references-list';
-                    
-                    references.forEach((ref, index) => {
-                        const refItem = document.createElement('div');
-                        refItem.className = 'ref-item';
-                        refItem.innerHTML = `
-                            <div class="ref-meta">
-                                <span class="ref-source">
-                                    <svg viewBox="0 0 24 24">
-                                        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-                                    </svg>
-                                    ${ref.source}
-                                </span>
-                                <span class="ref-index">段落 #${index + 1}</span>
-                            </div>
-                            <div class="ref-content">${ref.content}</div>
-                        `;
-                        refsList.appendChild(refItem);
-                    });
-                    
-                    // Toggle expand reference accordion
-                    refsHeader.addEventListener('click', () => {
-                        refsHeader.classList.toggle('expanded');
-                        refsList.classList.toggle('show');
-                    });
-                    
-                    refsContainer.appendChild(refsHeader);
-                    refsContainer.appendChild(refsList);
-                    bubble.appendChild(refsContainer);
-                }
+                // Start typewriter effect
+                const typewriterSpan = bubble.querySelector('.typewriter-content');
+                startTypewriterEffect(typewriterSpan, content, references);
             }
 
             row.appendChild(bubble);
@@ -1077,6 +1049,94 @@
             // Scroll to bottom
             chatContainer.scrollTop = chatContainer.scrollHeight;
             return row;
+        }
+
+        // Typewriter effect for AI responses
+        function startTypewriterEffect(element, fullText, references = []) {
+            let index = 0;
+            const speed = 20; // milliseconds per character
+            
+            // Process markdown in chunks to avoid breaking HTML tags
+            const formattedText = formatMarkdown(fullText);
+            
+            // Extract plain text for typing effect, then render formatted
+            function typeNextChar() {
+                if (index < fullText.length) {
+                    // Type a portion of text at a time for smoother effect
+                    const chunkSize = Math.min(3, fullText.length - index);
+                    const currentText = fullText.substring(0, index + chunkSize);
+                    
+                    // Format the current portion of text
+                    element.innerHTML = formatMarkdown(currentText) + '<span class="typing-cursor">|</span>';
+                    
+                    index += chunkSize;
+                    
+                    // Auto-scroll while typing
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    
+                    setTimeout(typeNextChar, speed);
+                } else {
+                    // Typing complete, show final formatted content with references
+                    element.innerHTML = formatMarkdown(fullText);
+                    
+                    // If references are present, build accordion dropdown
+                    if (references && references.length > 0) {
+                        addReferencesToBubble(element, references);
+                    }
+                    
+                    // Remove cursor
+                    const cursor = element.querySelector('.typing-cursor');
+                    if (cursor) cursor.remove();
+                }
+            }
+            
+            typeNextChar();
+        }
+
+        // Add references accordion to message bubble
+        function addReferencesToBubble(bubbleElement, references) {
+            const refsContainer = document.createElement('div');
+            refsContainer.className = 'references-container';
+            
+            const refsHeader = document.createElement('div');
+            refsHeader.className = 'references-header';
+            refsHeader.innerHTML = `
+                <svg viewBox="0 0 24 24">
+                    <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                </svg>
+                <span>檢視引用文獻 (${references.length})</span>
+            `;
+            
+            const refsList = document.createElement('div');
+            refsList.className = 'references-list';
+            
+            references.forEach((ref, index) => {
+                const refItem = document.createElement('div');
+                refItem.className = 'ref-item';
+                refItem.innerHTML = `
+                    <div class="ref-meta">
+                        <span class="ref-source">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                            </svg>
+                            ${ref.source}
+                        </span>
+                        <span class="ref-index">段落 #${index + 1}</span>
+                    </div>
+                    <div class="ref-content">${ref.content}</div>
+                `;
+                refsList.appendChild(refItem);
+            });
+            
+            // Toggle expand reference accordion
+            refsHeader.addEventListener('click', () => {
+                refsHeader.classList.toggle('expanded');
+                refsList.classList.toggle('show');
+            });
+            
+            refsContainer.appendChild(refsHeader);
+            refsContainer.appendChild(refsList);
+            bubbleElement.appendChild(refsContainer);
         }
 
         // Show AI typing indicator
