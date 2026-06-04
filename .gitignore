@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# ChromaDB (vector database - large, local only)
+chroma_db/
+
+# Logs
+*.log
+server.out.log
+server.err.log
+
+# PDF documents (potentially sensitive / large)
+docs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.idea/
+
+# Env / secrets
+.env
+.env.*

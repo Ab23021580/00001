@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本機 RAG 知識庫助理</title>
+    <!-- Google Fonts Outfit & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-surface: rgba(17, 24, 39, 0.75);
+            --bg-card: rgba(26, 32, 53, 0.6);
+            --bg-user-bubble: rgba(99, 102, 241, 0.15);
+            --bg-ai-bubble: rgba(31, 41, 55, 0.5);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.15);
+            --color-primary: #6366f1;
+            --color-primary-glow: rgba(99, 102, 241, 0.35);
+            --color-secondary: #8b5cf6;
+            --color-secondary-glow: rgba(139, 92, 246, 0.35);
+            --color-success: #10b981;
+            --color-success-glow: rgba(16, 185, 129, 0.2);
+            --color-danger: #ef4444;
+            --text-primary: #f3f4f6;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
+        }
+
+        /* Layout Container */
+        .app-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* Sidebar styling */
+        .sidebar {
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border-color);
+            backdrop-filter: blur(16px);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding-bottom: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .brand-logo {
+            width: 2.25rem;
+            height: 2.25rem;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px var(--color-primary-glow);
+        }
+
+        .brand-logo svg {
+            width: 1.25rem;
+            height: 1.25rem;
+            fill: white;
+        }
+
+        .brand-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #ffffff, #d1d5db);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 0.5px;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .panel-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            transition: border-color var(--transition-speed);
+        }
+
+        .panel-card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+        }
+
+        .status-label {
+            color: var(--text-secondary);
+        }
+
+        .status-value {
+            font-weight: 500;
+        }
+
+        .status-badge {
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .badge-success {
+            background-color: rgba(16, 185, 129, 0.15);
+            color: var(--color-success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .badge-loading {
+            background-color: rgba(99, 102, 241, 0.15);
+            color: var(--color-primary);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .model-tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 0.15rem 0.4rem;
+            border-radius: 0.25rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .file-list-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 200px;
+        }
+
+        .file-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            overflow-y: auto;
+            max-height: 240px;
+            padding-right: 4px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            padding: 0.4rem 0.6rem;
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .file-item svg {
+            width: 0.85rem;
+            height: 0.85rem;
+            fill: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+            color: white;
+            border: none;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 12px var(--color-primary-glow);
+            transition: all var(--transition-speed);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--color-primary);
+            color: var(--text-primary);
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background: rgba(99, 102, 241, 0.1);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+        }
+
+        /* Main Area styling */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Header bar */
+        .top-bar {
+            height: 4.5rem;
+            background-color: rgba(11, 15, 25, 0.4);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            backdrop-filter: blur(8px);
+            z-index: 10;
+        }
+
+        .top-bar-title {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .server-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dot-online {
+            background-color: var(--color-success);
+            box-shadow: 0 0 8px var(--color-success);
+            animation: pulse 2s infinite;
+        }
+
+        .dot-offline {
+            background-color: var(--color-danger);
+            box-shadow: 0 0 8px var(--color-danger);
+        }
+
+        /* Chat history container */
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            scroll-behavior: smooth;
+        }
+
+        /* Custom scrollbar */
+        .chat-history::-webkit-scrollbar,
+        .sidebar::-webkit-scrollbar,
+        .file-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-history::-webkit-scrollbar-track,
+        .sidebar::-webkit-scrollbar-track,
+        .file-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-history::-webkit-scrollbar-thumb,
+        .sidebar::-webkit-scrollbar-thumb,
+        .file-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .chat-history::-webkit-scrollbar-thumb:hover,
+        .sidebar::-webkit-scrollbar-thumb:hover,
+        .file-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto;
+            gap: 1.5rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .empty-icon {
+            width: 4rem;
+            height: 4rem;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .empty-icon svg {
+            width: 2rem;
+            height: 2rem;
+            fill: var(--color-primary);
+        }
+
+        .empty-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            background: linear-gradient(to right, #ffffff, #d1d5db);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .empty-desc {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .presets-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .preset-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            text-align: left;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .preset-card:hover {
+            border-color: var(--color-primary);
+            background-color: rgba(99, 102, 241, 0.05);
+            transform: translateY(-2px);
+        }
+
+        /* Message bubbles */
+        .message-row {
+            display: flex;
+            width: 100%;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .message-row.user-row {
+            justify-content: flex-end;
+        }
+
+        .message-row.ai-row {
+            justify-content: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 80%;
+            padding: 1.25rem 1.5rem;
+            border-radius: 1rem;
+            line-height: 1.6;
+            font-size: 0.95rem;
+            position: relative;
+        }
+
+        .user-row .message-bubble {
+            background-color: var(--bg-user-bubble);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: var(--text-primary);
+            border-bottom-right-radius: 0.25rem;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.05);
+        }
+
+        .ai-row .message-bubble {
+            background-color: var(--bg-ai-bubble);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-bottom-left-radius: 0.25rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Markdown styling inside bubbles */
+        .message-bubble ul, .message-bubble ol {
+            padding-left: 1.5rem;
+            margin: 0.5rem 0;
+        }
+
+        .message-bubble li {
+            margin-bottom: 0.25rem;
+        }
+
+        .message-bubble p {
+            margin-bottom: 0.75rem;
+        }
+
+        .message-bubble p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* References Accordion */
+        .references-container {
+            margin-top: 1rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 0.75rem;
+        }
+
+        .references-header {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+            padding: 0.25rem 0;
+            width: fit-content;
+        }
+
+        .references-header svg {
+            width: 0.85rem;
+            height: 0.85rem;
+            fill: var(--text-secondary);
+            transition: transform 0.2s;
+        }
+
+        .references-header.expanded svg {
+            transform: rotate(90deg);
+        }
+
+        .references-list {
+            display: none;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .references-list.show {
+            display: flex;
+        }
+
+        .ref-item {
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .ref-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.4rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .ref-source {
+            font-weight: 600;
+            color: var(--color-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .ref-source svg {
+            width: 0.8rem;
+            height: 0.8rem;
+            fill: var(--color-secondary);
+        }
+
+        .ref-index {
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .ref-score {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.1rem 0.45rem;
+            border-radius: 0.3rem;
+            font-family: var(--font-mono);
+            letter-spacing: 0.02em;
+        }
+        .ref-score-high  { background: rgba(34,197,94,0.15);  color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+        .ref-score-mid   { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+        .ref-score-low   { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+        .ref-score-web   { background: rgba(34,211,238,0.15); color: #22d3ee; border: 1px solid rgba(34,211,238,0.3); }
+
+        .ref-content {
+            color: var(--text-secondary);
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .ref-highlight {
+            background: rgba(251, 191, 36, 0.28);
+            color: #fde68a;
+            border-radius: 0.2rem;
+            padding: 0 0.1rem;
+            font-weight: 600;
+        }
+
+        /* Input Area Container */
+        .input-container {
+            padding: 1.5rem 2rem 2rem 2rem;
+            background-color: rgba(11, 15, 25, 0.6);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .input-wrapper {
+            position: relative;
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: rgba(20, 24, 43, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            display: flex;
+            padding: 0.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            transition: all var(--transition-speed);
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 15px var(--color-primary-glow);
+        }
+
+        .input-box {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 0.95rem;
+            padding: 0.75rem 1rem;
+            resize: none;
+            height: 2.75rem;
+            max-height: 12rem;
+            line-height: 1.5;
+        }
+
+        .input-actions {
+            display: flex;
+            align-items: flex-end;
+            padding-right: 0.5rem;
+            padding-bottom: 0.25rem;
+        }
+
+        /* Web search toggle button */
+        .web-toggle-btn {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 0.75rem;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.35rem;
+            transition: all var(--transition-speed);
+            position: relative;
+        }
+        .web-toggle-btn svg {
+            width: 1.1rem;
+            height: 1.1rem;
+            fill: var(--text-muted);
+            transition: fill 0.2s;
+        }
+        .web-toggle-btn:hover {
+            border-color: #22d3ee;
+            background: rgba(34, 211, 238, 0.05);
+        }
+        .web-toggle-btn.active {
+            border-color: #22d3ee;
+            background: rgba(34, 211, 238, 0.12);
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.25);
+        }
+        .web-toggle-btn.active svg {
+            fill: #22d3ee;
+        }
+        .web-toggle-btn .web-tooltip {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 24, 43, 0.95);
+            border: 1px solid var(--border-color);
+            border-radius: 0.4rem;
+            padding: 0.3rem 0.6rem;
+            font-size: 0.72rem;
+            white-space: nowrap;
+            color: var(--text-secondary);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        .web-toggle-btn:hover .web-tooltip { opacity: 1; }
+
+        .ref-type-badge {
+            font-size: 0.65rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 0.25rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .ref-type-web {
+            background: rgba(34, 211, 238, 0.15);
+            color: #22d3ee;
+            border: 1px solid rgba(34, 211, 238, 0.3);
+        }
+        .ref-type-rag {
+            background: rgba(99, 102, 241, 0.12);
+            color: var(--color-primary);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+        }
+
+        .send-btn {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 0.75rem;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px var(--color-primary-glow);
+            transition: all var(--transition-speed);
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+
+        .send-btn svg {
+            width: 1.15rem;
+            height: 1.15rem;
+            fill: white;
+            transition: transform 0.2s;
+        }
+
+        .send-btn:hover svg {
+            transform: translate(1px, -1px);
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 50%;
+            border-left-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .db-building-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1.5rem;
+            animation: fadeIn 0.3s;
+        }
+
+        .db-building-overlay.show {
+            display: flex;
+        }
+
+        .db-building-spinner {
+            width: 3.5rem;
+            height: 3.5rem;
+            border: 4px solid rgba(99, 102, 241, 0.1);
+            border-left-color: var(--color-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            box-shadow: 0 0 15px var(--color-primary-glow);
+        }
+
+        /* Typing indicator for AI */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            height: 1.5rem;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--text-secondary);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        /* Typewriter cursor effect */
+        .typing-cursor {
+            display: inline-block;
+            color: var(--color-primary);
+            font-weight: bold;
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* Animations */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 12px var(--color-success); }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* Responsive styling */
+        @media (max-width: 800px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                display: none; /* Hide sidebar on small screens for simplicity */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Panel -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+                    </svg>
+                </div>
+                <div class="brand-name">RAG 知識庫助手</div>
+            </div>
+
+            <!-- Database Status Card -->
+            <div>
+                <h4 class="section-title">知識庫狀態</h4>
+                <div class="panel-card">
+                    <div class="status-item">
+                        <span class="status-label">目前段落數</span>
+                        <span class="status-badge badge-success" id="db-chunk-count">0 段落</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">PDF 檔案數</span>
+                        <span class="status-value" id="db-pdf-count">0 個</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">模型</span>
+                        <span class="model-tag" id="status-llm">gemma3</span>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- PDF Files List Card -->
+            <div class="file-list-container">
+                <h4 class="section-title">來源 PDF 檔案</h4>
+                <ul class="file-list" id="pdf-file-list">
+                    <!-- Loaded dynamically -->
+                    <li style="color: var(--text-muted); font-size: 0.8rem; text-align: center; padding-top: 1rem;">暫無 PDF 檔案</li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="main-content">
+            <!-- Rebuilding database screen overlay -->
+            <div class="db-building-overlay" id="db-overlay">
+                <div class="db-building-spinner"></div>
+                <div style="font-size: 1.15rem; font-weight: 500;">正在向量化 PDF 檔案中...</div>
+                <div style="color: var(--text-secondary); font-size: 0.9rem; text-align: center; max-width: 320px;">這可能需要幾分鐘的時間，請稍候。本機正在執行 Embeddings 計算。</div>
+            </div>
+
+            <!-- Top bar -->
+            <header class="top-bar">
+                <div class="top-bar-title" id="db-status-bar">本機 RAG 線上系統</div>
+                <div class="server-indicator">
+                    <span class="dot dot-offline" id="server-status-dot"></span>
+                    <span id="server-status-text" style="color: var(--text-secondary)">伺服器未連線</span>
+                </div>
+            </header>
+
+            <!-- Chat message list -->
+            <div class="chat-history" id="chat-container">
+                <!-- Welcome view (Empty state) -->
+                <div class="empty-state" id="empty-state">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+                        </svg>
+                    </div>
+                    <h2 class="empty-title">本機 RAG 知識庫助手</h2>
+                    <p class="empty-desc">這是基於您本機 PDF 檔案內容的問答系統。我會精確地在您的文檔中搜索最相關的段落，並結合本機 LLM 模型生成專業回答。</p>
+                    
+                    <div class="presets-grid">
+                        <div class="preset-card" onclick="askPreset(this)">這個知識庫裡面的 PDF 主要在講什麼？</div>
+                        <div class="preset-card" onclick="askPreset(this)">請幫我列出文件中提到最核心的幾項重點。</div>
+                        <div class="preset-card" onclick="askPreset(this)">知識庫裡有沒有提到相關的使用說明或規格？</div>
+                        <div class="preset-card" onclick="askPreset(this)">隨機從文檔中整理三個值得注意的觀點。</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom sticky input -->
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        class="input-box" 
+                        id="user-input" 
+                        placeholder="請輸入您的問題... (按下 Enter 發送，Shift + Enter 換行)" 
+                        rows="1"
+                        autocomplete="off"
+                    ></textarea>
+                    <div class="input-actions">
+                        <button class="web-toggle-btn" id="web-toggle-btn" title="">
+                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                            <span class="web-tooltip">連網搜尋（Tavily）</span>
+                        </button>
+                        <button class="send-btn" id="send-btn" title="發送問題">
+                            <svg id="send-icon" viewBox="0 0 24 24">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                            </svg>
+                            <div class="spinner" id="send-spinner" style="display: none;"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = ''; // Same origin
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const sendIcon = document.getElementById('send-icon');
+        const sendSpinner = document.getElementById('send-spinner');
+        const webToggleBtn = document.getElementById('web-toggle-btn');
+        const emptyState = document.getElementById('empty-state');
+        const dbChunkCount = document.getElementById('db-chunk-count');
+        const dbPdfCount = document.getElementById('db-pdf-count');
+        const statusLlm = document.getElementById('status-llm');
+        const pdfFileList = document.getElementById('pdf-file-list');
+        const serverStatusDot = document.getElementById('server-status-dot');
+        const serverStatusText = document.getElementById('server-status-text');
+
+        const dbOverlay = document.getElementById('db-overlay');
+
+        let isGenerating = false;
+        let webMode = false;  // Tavily 連網模式開關
+        let lastQuestion = '';  // 目前問題（用於高亮關鍵字）
+
+        // Web toggle button
+        webToggleBtn.addEventListener('click', () => {
+            webMode = !webMode;
+            webToggleBtn.classList.toggle('active', webMode);
+            webToggleBtn.title = webMode ? '連網模式：開啟' : '連網模式：關閉';
+        });
+
+        // Auto-resize textarea height
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight - 4) + 'px';
+        });
+
+        // Initialize status load
+        async function checkStatus() {
+            try {
+                const res = await fetch(`${API_URL}/api/status`);
+                if (!res.ok) throw new Error('API Error');
+                const data = await res.json();
+                
+                // Update server indicator
+                serverStatusDot.className = 'dot dot-online';
+                serverStatusText.textContent = '連線正常';
+                serverStatusText.style.color = 'var(--color-success)';
+
+                // Update UI data
+                dbChunkCount.textContent = `${data.db_count} 段落`;
+                dbPdfCount.textContent = `${data.pdf_count} 個`;
+                statusLlm.textContent = data.llm_model;
+
+                // Load files list
+                if (data.pdf_files && data.pdf_files.length > 0) {
+                    pdfFileList.innerHTML = '';
+                    data.pdf_files.forEach(file => {
+                        const li = document.createElement('li');
+                        li.className = 'file-item';
+                        li.title = file;
+                        li.innerHTML = `
+                            <svg viewBox="0 0 24 24">
+                                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                            </svg>
+                            ${file}
+                        `;
+                        pdfFileList.appendChild(li);
+                    });
+                } else {
+                    pdfFileList.innerHTML = `<li style="color: var(--text-muted); font-size: 0.8rem; text-align: center; padding-top: 1rem;">暫無 PDF 檔案</li>`;
+                }
+            } catch (err) {
+                console.error('Failed to connect to backend RAG API:', err);
+                serverStatusDot.className = 'dot dot-offline';
+                serverStatusText.textContent = '伺服器未啟動';
+                serverStatusText.style.color = 'var(--color-danger)';
+            }
+        }
+
+
+
+        // Parse markdown formatting helper
+        function formatMarkdown(text) {
+            if (!text) return "";
+            let html = text;
+            
+            // Escape HTML tags to prevent cross site scripting
+            html = html
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+            
+            // Bold: **text**
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Inline Code: `code`
+            html = html.replace(/`(.*?)`/g, '<code style="background: rgba(255,255,255,0.1); padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-family: var(--font-mono); font-size: 0.85em; color: #f472b6;">$1</code>');
+            
+            // Code Blocks: ```code```
+            html = html.replace(/```([\s\S]*?)```/g, '<pre style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; font-family: var(--font-mono); font-size: 0.85rem; overflow-x: auto; margin: 0.75rem 0; color: #a5b4fc;">$1</pre>');
+            
+            // List rendering
+            let lines = html.split('\n');
+            let inList = false;
+            for (let i = 0; i < lines.length; i++) {
+                let trimmed = lines[i].trim();
+                if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+                    let content = trimmed.substring(2);
+                    if (!inList) {
+                        lines[i] = '<ul style="list-style-type: disc; padding-left: 1.5rem; margin: 0.5rem 0;"><li>' + content + '</li>';
+                        inList = true;
+                    } else {
+                        lines[i] = '<li>' + content + '</li>';
+                    }
+                } else {
+                    if (inList) {
+                        lines[i - 1] = lines[i - 1] + '</ul>';
+                        inList = false;
+                    }
+                }
+            }
+            if (inList) {
+                lines[lines.length - 1] = lines[lines.length - 1] + '</ul>';
+            }
+            html = lines.join('\n');
+            
+            // Double line break to paragraphs, single line break to br
+            html = html.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+            
+            // Wrap in paragraph if it doesn't start with list
+            if (!html.startsWith('<ul') && !html.startsWith('<pre')) {
+                html = '<p>' + html + '</p>';
+            }
+            
+            return html;
+        }
+
+        // Add message bubble to chat log UI
+        function appendMessage(role, content, references = []) {
+            // Remove empty state if present
+            if (emptyState) {
+                emptyState.style.display = 'none';
+            }
+
+            const row = document.createElement('div');
+            row.className = `message-row ${role}-row`;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            
+            if (role === 'user') {
+                bubble.textContent = content;
+            } else {
+                // For AI messages, start with empty content for typewriter effect
+                bubble.innerHTML = '<span class="typewriter-content"></span>';
+                
+                // Start typewriter effect
+                const typewriterSpan = bubble.querySelector('.typewriter-content');
+                startTypewriterEffect(typewriterSpan, content, references);
+            }
+
+            row.appendChild(bubble);
+            chatContainer.appendChild(row);
+            
+            // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return row;
+        }
+
+        // Typewriter effect for AI responses
+        function startTypewriterEffect(element, fullText, references = []) {
+            let index = 0;
+            const speed = 18;     // ms 每輪
+            const chunkSize = 4;  // 每輪顯示幾個字元
+
+            function typeNextChar() {
+                if (index < fullText.length) {
+                    index = Math.min(index + chunkSize, fullText.length);
+                    // 打字期間：純文字 + 游標（不 parse Markdown 避免閃爍）
+                    element.textContent = fullText.substring(0, index);
+                    const cursor = document.createElement('span');
+                    cursor.className = 'typing-cursor';
+                    cursor.textContent = '|';
+                    element.appendChild(cursor);
+
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    setTimeout(typeNextChar, speed);
+                } else {
+                    // 打字完成：render Markdown
+                    element.innerHTML = formatMarkdown(fullText);
+
+                    if (references && references.length > 0) {
+                        addReferencesToBubble(element, references);
+                    }
+                }
+            }
+
+            typeNextChar();
+        }
+
+
+        // Highlight question keywords in reference text
+        function highlightKeywords(text, question) {
+            if (!question || !text) return escapeHtml(text);
+            // Extract words (≥2 chars), deduplicated
+            const words = [...new Set(
+                question.split(/[\s，。？！、；：\.,!?;:]+/)
+                    .map(w => w.trim())
+                    .filter(w => w.length >= 2)
+            )];
+            if (!words.length) return escapeHtml(text);
+            // Escape HTML first, then apply highlight
+            let safe = escapeHtml(text);
+            words.forEach(word => {
+                const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const re = new RegExp(`(${escaped})`, 'gi');
+                safe = safe.replace(re, '<mark class="ref-highlight">$1</mark>');
+            });
+            return safe;
+        }
+
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // Add references accordion to message bubble
+        function addReferencesToBubble(bubbleElement, references) {
+            const refsContainer = document.createElement('div');
+            refsContainer.className = 'references-container';
+            
+            const refsHeader = document.createElement('div');
+            refsHeader.className = 'references-header';
+            refsHeader.innerHTML = `
+                <svg viewBox="0 0 24 24">
+                    <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                </svg>
+                <span>檢視引用文獻 (${references.length})</span>
+            `;
+            
+            const refsList = document.createElement('div');
+            refsList.className = 'references-list';
+            
+            references.forEach((ref, index) => {
+                const refItem = document.createElement('div');
+                refItem.className = 'ref-item';
+                refItem.innerHTML = `
+                    <div class="ref-meta">
+                        <span class="ref-source">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                            </svg>
+                            ${ref.source}
+                        </span>
+                        <span style="display:flex;align-items:center;gap:0.35rem;">
+                            <span class="ref-index">#${index + 1}</span>
+                            ${ref.type === 'web'
+                                ? '<span class="ref-score ref-score-web">網路</span>'
+                                : ref.score != null
+                                    ? `<span class="ref-score ${ref.score >= 70 ? 'ref-score-high' : ref.score >= 50 ? 'ref-score-mid' : 'ref-score-low'}">${ref.score}%</span>`
+                                    : ''
+                            }
+                        </span>
+                    </div>
+                    <div class="ref-content">${highlightKeywords(ref.content, lastQuestion)}</div>
+                `;
+                refsList.appendChild(refItem);
+            });
+            
+            // Toggle expand reference accordion
+            refsHeader.addEventListener('click', () => {
+                refsHeader.classList.toggle('expanded');
+                refsList.classList.toggle('show');
+            });
+            
+            refsContainer.appendChild(refsHeader);
+            refsContainer.appendChild(refsList);
+            bubbleElement.appendChild(refsContainer);
+        }
+
+        // Show AI typing indicator
+        let typingIndicatorRow = null;
+        function showTypingIndicator() {
+            if (emptyState) {
+                emptyState.style.display = 'none';
+            }
+            
+            typingIndicatorRow = document.createElement('div');
+            typingIndicatorRow.className = 'message-row ai-row';
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            bubble.style.padding = '0.75rem 1.25rem';
+            
+            const typing = document.createElement('div');
+            typing.className = 'typing-indicator';
+            typing.innerHTML = `
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            `;
+            
+            bubble.appendChild(typing);
+            typingIndicatorRow.appendChild(bubble);
+            chatContainer.appendChild(typingIndicatorRow);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Remove AI typing indicator
+        function removeTypingIndicator() {
+            if (typingIndicatorRow) {
+                typingIndicatorRow.remove();
+                typingIndicatorRow = null;
+            }
+        }
+
+        // Trigger message ask flow
+        async function askQuestion(text) {
+            if (isGenerating || !text.trim()) return;
+            
+            isGenerating = true;
+            lastQuestion = text;           // 儲存問題供高亮使用
+            appendMessage('user', text);
+            userInput.value = '';
+            userInput.style.height = 'auto'; // Reset size
+            
+            // Set button load state
+            sendIcon.style.display = 'none';
+            sendSpinner.style.display = 'block';
+            sendBtn.disabled = true;
+            
+            // Show AI thinking
+            showTypingIndicator();
+            
+            try {
+                const res = await fetch(`${API_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: text, use_web: webMode })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || 'Server HTTP error status: ' + res.status);
+                }
+
+                const data = await res.json();
+                removeTypingIndicator();
+                appendMessage('ai', data.answer, data.references);
+            } catch (err) {
+                removeTypingIndicator();
+                appendMessage('ai', `⚠️ 發生錯誤：${err.message || '無法與本機 RAG 伺服器通訊，請確認服務已啟動。'}`);
+                console.error(err);
+            } finally {
+                isGenerating = false;
+                sendIcon.style.display = 'block';
+                sendSpinner.style.display = 'none';
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        // Click preset question card
+        function askPreset(cardElement) {
+            if (isGenerating) return;
+            const text = cardElement.textContent.trim();
+            askQuestion(text);
+        }
+
+        // Handle send click
+        sendBtn.addEventListener('click', () => {
+            askQuestion(userInput.value);
+        });
+
+        // Handle keyboard event
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevents line break
+                askQuestion(userInput.value);
+            }
+        });
+
+        // Run checkStatus on load and set up periodic checks
+        checkStatus();
+        setInterval(checkStatus, 10000); // Check every 10s
+    </script>
+</body>
+</html>
